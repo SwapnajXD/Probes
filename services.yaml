@@ -1,0 +1,20 @@
+# List every service you want pinged and tracked here.
+# "url" is checked on a timer - use a real endpoint on each backend
+# (a /health route if you have one, otherwise just the root URL).
+#
+# check_interval_seconds controls both:
+#   - how often status/uptime % is refreshed
+#   - how often your free-tier backends get pinged to prevent them
+#     from spinning down due to inactivity
+
+check_interval_seconds: 240
+
+services:
+  - name: "Portfolio"
+    url: "https://swapnaj.vercel.app"
+
+  - name: "Cloud Sentinel API"
+    url: "https://REPLACE-ME.example.com/health"
+
+  - name: "Aliasly"
+    url: "https://REPLACE-ME.example.com"

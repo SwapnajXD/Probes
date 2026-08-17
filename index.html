@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Service Health</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">health<span class="accent">@</span>dashboard<span class="dim">:~$</span></div>
+    <div class="sub">auto-refreshing &middot; last 24h uptime</div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div id="services">
+      {% for svc in services %}
+      <div class="card" data-name="{{ svc.name }}">
+        <div class="row-top">
+          <div class="name">
+            <span class="dot {{ 'up' if svc.is_up else 'down' }}"></span>
+            {{ svc.name }}
+          </div>
+          <div class="uptime">{{ svc.uptime_pct if svc.uptime_pct is not none else '—' }}%</div>
+        </div>
+        <div class="url">{{ svc.url }}</div>
+        <div class="row-meta">
+          <span>status: {{ svc.status_code if svc.status_code else 'unreachable' }}</span>
+          <span>latency: {{ (svc.latency_ms ~ ' ms') if svc.latency_ms is not none else '—' }}</span>
+          <span>checked: {{ svc.checked_at if svc.checked_at else 'pending first check' }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">/metrics available for Prometheus scraping</div>
+</footer>
+
+<script>
+async function refresh() {
+  try {
+    const res = await fetch('/api/status');
+    const services = await res.json();
+    const container = document.getElementById('services');
+    container.innerHTML = services.map(svc => `
+      <div class="card">
+        <div class="row-top">
+          <div class="name">
+            <span class="dot ${svc.is_up ? 'up' : 'down'}"></span>
+            ${svc.name}
+          </div>
+          <div class="uptime">${svc.uptime_pct !== null ? svc.uptime_pct : '—'}%</div>
+        </div>
+        <div class="url">${svc.url}</div>
+        <div class="row-meta">
+          <span>status: ${svc.status_code ?? 'unreachable'}</span>
+          <span>latency: ${svc.latency_ms !== null ? svc.latency_ms + ' ms' : '—'}</span>
+          <span>checked: ${svc.checked_at ?? 'pending first check'}</span>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('refresh failed', e);
+  }
+}
+setInterval(refresh, 30000);
+</script>
+
+</body>
+</html>
