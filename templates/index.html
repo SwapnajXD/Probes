@@ -33,6 +33,16 @@
           <span>latency: {{ (svc.latency_ms ~ ' ms') if svc.latency_ms is not none else '—' }}</span>
           <span>checked: {{ svc.checked_at if svc.checked_at else 'pending first check' }}</span>
         </div>
+        {% if svc.incidents %}
+        <div class="incidents">
+          {% for inc in svc.incidents %}
+          <div class="incident-row">
+            <span class="dot {{ 'down' if inc.ended_at is none else 'up' }}"></span>
+            {{ inc.started_at }} &middot; {{ inc.duration }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -64,6 +74,15 @@ async function refresh() {
           <span>latency: ${svc.latency_ms !== null ? svc.latency_ms + ' ms' : '—'}</span>
           <span>checked: ${svc.checked_at ?? 'pending first check'}</span>
         </div>
+        ${svc.incidents && svc.incidents.length ? `
+        <div class="incidents">
+          ${svc.incidents.map(inc => `
+            <div class="incident-row">
+              <span class="dot ${inc.ended_at === null ? 'down' : 'up'}"></span>
+              ${inc.started_at} &middot; ${inc.duration}
+            </div>
+          `).join('')}
+        </div>` : ''}
       </div>
     `).join('');
   } catch (e) {

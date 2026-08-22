@@ -4,7 +4,26 @@ from datetime import datetime, timedelta, timezone
 import yaml
 from flask import Flask, Response, jsonify, render_template
 
-from checker import DB_PATH, init_db, start_background_checker
+from checker import (
+    DB_PATH,
+    get_incidents,
+    init_db,
+    resolve_env,
+    start_background_checker,
+)
+
+
+def format_duration(seconds):
+    if seconds is None:
+        return "ongoing"
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    return f"{hours}h {minutes % 60}m"
 
 app = Flask(__name__)
 
@@ -39,10 +58,19 @@ def get_status():
             (svc["name"], since),
         ).fetchone()["c"]
 
+        incidents = [
+            {
+                "started_at": inc["started_at"],
+                "ended_at": inc["ended_at"],
+                "duration": format_duration(inc["duration_seconds"]),
+            }
+            for inc in get_incidents(svc["name"], limit=3)
+        ]
+
         results.append(
             {
                 "name": svc["name"],
-                "url": svc["url"],
+                "url": resolve_env(svc["url"]),
                 "is_up": bool(latest["is_up"]) if latest else None,
                 "status_code": latest["status_code"] if latest else None,
                 "latency_ms": round(latest["latency_ms"], 1)
@@ -50,6 +78,7 @@ def get_status():
                 else None,
                 "checked_at": latest["checked_at"] if latest else None,
                 "uptime_pct": round((up / total) * 100, 1) if total else None,
+                "incidents": incidents,
             }
         )
 

@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# App runtime data
+health.db
+*.db
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Env vars (if you ever create a .env file for local secrets)
+.env

@@ -6,6 +6,15 @@
 #   - how often status/uptime % is refreshed
 #   - how often your free-tier backends get pinged to prevent them
 #     from spinning down due to inactivity
+#
+# URLs can reference env vars with ${VAR_NAME} - handy so you don't
+# rebuild the image just to change a URL, and it's the same pattern
+# K8s ConfigMaps/Secrets use later.
+#
+# Optional Telegram alerts (fires on up<->down transitions only):
+#   export TELEGRAM_BOT_TOKEN=xxxx
+#   export TELEGRAM_CHAT_ID=xxxx
+# Leave unset and alerting silently no-ops.
 
 check_interval_seconds: 240
 
@@ -14,7 +23,7 @@ services:
     url: "https://swapnaj.vercel.app"
 
   - name: "Cloud Sentinel API"
-    url: "https://REPLACE-ME.example.com/health"
+    url: "${CLOUD_SENTINEL_URL}/health"
 
   - name: "Aliasly"
-    url: "https://REPLACE-ME.example.com"
+    url: "${ALIASLY_URL}"

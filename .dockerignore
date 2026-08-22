@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+health.db
+.venv/
+.git/
