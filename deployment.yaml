@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: probes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: probes
+  template:
+    metadata:
+      labels:
+        app: probes
+    spec:
+      containers:
+        - name: probes
+          image: swapnajxd/probes:eks
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: probes-secrets
