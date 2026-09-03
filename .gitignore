@@ -1,19 +1,27 @@
+# Runtime data - this is app state, not source code
+health.db
+*.db
+
 # Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
 .venv/
 venv/
 env/
-
-# App runtime data
-health.db
-*.db
+*.egg-info/
 
 # Editor / OS
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
 
-# Env vars (if you ever create a .env file for local secrets)
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local secrets, if ever used
 .env
+.env.local

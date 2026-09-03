@@ -60,9 +60,15 @@ Probes/
 ├── checker.py              # Background thread: health checks, incident tracking, alerting
 ├── services.yaml            # List of services to monitor (edit this)
 ├── requirements.txt
+├── requirements-dev.txt     # Adds pytest, for running tests
 ├── Dockerfile
 ├── static/style.css
 ├── templates/index.html
+├── tests/                   # 22 pytest tests covering checker.py's real logic
+│   ├── conftest.py
+│   ├── test_resolve_env.py
+│   ├── test_incidents.py
+│   └── test_check_once.py
 ├── k8s/                     # Kubernetes manifests (used for the AWS EKS learning deployment)
 │   ├── deployment.yaml
 │   ├── service.yaml
@@ -89,6 +95,18 @@ docker build -t probes:local .
 docker run -d -p 8080:8080 --name probes probes:local
 curl http://localhost:8080/api/status
 ```
+
+## Running tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+22 tests cover the actual logic that matters most: incident open/close transitions, uptime
+computation, environment-variable URL resolution, graceful handling of unreachable services, and
+the guarantee that a failed Telegram alert never crashes the checker loop. Each test runs against
+an isolated temporary database, not `health.db`.
 
 ## Configuration
 

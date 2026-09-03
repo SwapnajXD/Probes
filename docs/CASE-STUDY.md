@@ -50,7 +50,8 @@ This project deliberately used two different deployment targets for two differen
     entirely. Solved with a free external cron service pinging the app every 10 minutes.
 11. Wired the app's `/metrics` endpoint into a self-hosted Prometheus and Grafana stack, with a
     Grafana alert rule routed through an existing Telegram alerting pipeline — rather than relying
-    on the dormant in-app Telegram code.
+    on the dormant in-app Telegram code. **Confirmed working end-to-end**: with Cloud Sentinel and
+    Aliasly genuinely down, the alert fired and a real Telegram notification was received.
 
 ## A real incident, not a smooth demo
 
@@ -94,6 +95,19 @@ a slow first request; for Probes, it's worse — the background checker thread s
 defeating the app's entire purpose. Rather than upgrade to a paid tier, a free external cron
 service pings Probes every 10 minutes, keeping it continuously awake. The irony of an uptime
 monitor needing its own external uptime check was not lost on me.
+
+## Automated tests
+
+The core logic in `checker.py` — incident open/close transitions, uptime tracking, environment-
+variable URL resolution, and the guarantee that a failed Telegram alert never crashes the checker
+loop — had only ever been verified manually, by watching `curl` output during development. A
+22-test `pytest` suite now covers this directly, each test running against an isolated temporary
+database.
+
+To confirm the suite actually catches real regressions rather than passing vacuously, a bug was
+deliberately introduced (an alert firing on the very first check, which should never happen since
+there's no prior state to compare against) and the relevant test failed exactly as expected before
+the bug was reverted.
 
 ## What's intentionally not done yet
 

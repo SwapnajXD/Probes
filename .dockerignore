@@ -1,5 +1,30 @@
-__pycache__/
-*.pyc
+# Version control
+.git
+.gitignore
+.github
+
+# Kubernetes manifests and docs - not needed inside the running container
+k8s/
+docs/
+README.md
+LICENSE
+
+# Tests and dev-only dependencies - not needed at runtime
+tests/
+requirements-dev.txt
+.pytest_cache/
+
+# Runtime data - the container should always start with a fresh database
 health.db
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
 .venv/
-.git/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
