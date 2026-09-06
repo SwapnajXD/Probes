@@ -115,6 +115,16 @@ separate deployment target from the Render production instance.
 To use this workflow on a fork, two repository secrets need to be set under
 Settings → Secrets and variables → Actions: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
 
+**A real fix worth documenting:** the first CI run failed with
+`ModuleNotFoundError: No module named 'pkg_resources'` inside `coverage-badge`. Rather than assume
+it was a missing dependency, I reproduced it in an isolated local venv and confirmed the actual
+cause: `coverage-badge` (last updated years ago) depends on the deprecated `pkg_resources` API,
+which recent `setuptools` releases have removed entirely — installing `setuptools` alone doesn't
+fix it, since the module isn't in newer versions at all. The real fix is pinning
+`pip install "setuptools<81"` specifically, which I verified end-to-end locally (ran the full test
+suite, regenerated a real badge showing the correct percentage, confirmed exit code 0) before
+pushing the fix.
+
 ## Automated tests
 
 The core logic in `checker.py` — incident open/close transitions, uptime tracking, environment-
