@@ -22,8 +22,3 @@ services:
   - name: "Portfolio"
     url: "https://swapnaj.vercel.app"
 
-  - name: "Cloud Sentinel API"
-    url: "${CLOUD_SENTINEL_URL}/health"
-
-  - name: "Aliasly"
-    url: "${ALIASLY_URL}"
