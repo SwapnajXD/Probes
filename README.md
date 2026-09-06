@@ -1,5 +1,10 @@
 # Probes
 
+[![CI](https://github.com/SwapnajXD/Probes/actions/workflows/ci.yml/badge.svg)](https://github.com/SwapnajXD/Probes/actions/workflows/ci.yml)
+![coverage](coverage.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.12-blue.svg)
+
 **A self-hosted service health dashboard** — pings your backends on a schedule, tracks uptime and
 downtime incidents with real duration, exposes Prometheus-compatible metrics, and doubles as a
 free way to keep low-traffic personal projects from spinning down on free-tier hosts.
@@ -56,11 +61,14 @@ auto-refreshing · last 24h uptime
 
 ```
 Probes/
+├── .github/workflows/ci.yml   # Tests + coverage badge + Docker build/push on every push
 ├── app.py                 # Flask app: dashboard, JSON API, /metrics endpoint
 ├── checker.py              # Background thread: health checks, incident tracking, alerting
 ├── services.yaml            # List of services to monitor (edit this)
 ├── requirements.txt
 ├── requirements-dev.txt     # Adds pytest, for running tests
+├── .coveragerc               # Scopes coverage measurement to checker.py
+├── coverage.svg              # Auto-updated by CI on every push to main
 ├── Dockerfile
 ├── static/style.css
 ├── templates/index.html
@@ -100,13 +108,21 @@ curl http://localhost:8080/api/status
 
 ```bash
 pip install -r requirements-dev.txt
+pip install coverage coverage-badge   # only needed to regenerate coverage.svg locally
 pytest tests/ -v
 ```
 
-22 tests cover the actual logic that matters most: incident open/close transitions, uptime
-computation, environment-variable URL resolution, graceful handling of unreachable services, and
-the guarantee that a failed Telegram alert never crashes the checker loop. Each test runs against
-an isolated temporary database, not `health.db`.
+22 tests cover `checker.py` — the module with the actual logic that matters: incident open/close
+transitions, uptime computation, environment-variable URL resolution, graceful handling of
+unreachable services, and the guarantee that a failed Telegram alert never crashes the checker
+loop. Each test runs against an isolated temporary database, not `health.db`.
+
+**Current coverage: 93%** of `checker.py` (the two uncovered functions run infinite loops /
+background threads and aren't meaningfully unit-testable). `app.py`'s Flask routes don't have
+dedicated tests yet — an honest gap, not an oversight glossed over.
+
+CI runs this suite on every push and pull request, and regenerates `coverage.svg` automatically on
+pushes to `main`.
 
 ## Configuration
 

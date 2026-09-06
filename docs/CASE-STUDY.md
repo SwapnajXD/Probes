@@ -96,6 +96,25 @@ defeating the app's entire purpose. Rather than upgrade to a paid tier, a free e
 service pings Probes every 10 minutes, keeping it continuously awake. The irony of an uptime
 monitor needing its own external uptime check was not lost on me.
 
+## CI/CD
+
+Every push and pull request runs the full test suite via GitHub Actions
+(`.github/workflows/ci.yml`). On pushes to `main` specifically, two additional things happen:
+
+1. **`coverage.svg` regenerates and commits itself back to the repo** — the badge in the README is
+   never stale, without needing a third-party coverage service. The commit message includes
+   `[skip ci]` to avoid the badge update re-triggering the workflow.
+2. **A Docker image builds and pushes to Docker Hub**, tagged both `latest` and with the commit
+   SHA — gated behind the test job passing first, so a broken change can't produce a new image.
+
+This pipeline does **not** deploy to Render — Render is connected directly to this GitHub repo and
+auto-deploys from source on every push independently. The Docker Hub image this pipeline produces
+is specifically for the `k8s/` manifests, i.e. the AWS EKS side of this project, which is a
+separate deployment target from the Render production instance.
+
+To use this workflow on a fork, two repository secrets need to be set under
+Settings → Secrets and variables → Actions: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
+
 ## Automated tests
 
 The core logic in `checker.py` — incident open/close transitions, uptime tracking, environment-

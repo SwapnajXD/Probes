@@ -13,6 +13,9 @@ LICENSE
 tests/
 requirements-dev.txt
 .pytest_cache/
+.coveragerc
+.coverage
+coverage.svg
 
 # Runtime data - the container should always start with a fresh database
 health.db

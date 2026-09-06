@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install coverage coverage-badge
+
+      - name: Run tests with coverage
+        run: |
+          coverage run -m pytest tests/ -v
+          coverage report -m
+
+      - name: Generate coverage badge
+        run: coverage-badge -o coverage.svg -f
+
+      # Only commits the badge back on a real push to main, never on PRs
+      # (a PR from a fork wouldn't even have write access to do this).
+      # [skip ci] in the commit message stops this from re-triggering the workflow.
+      - name: Commit updated coverage badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add coverage.svg
+          git diff --staged --quiet || git commit -m "chore: update coverage badge [skip ci]"
+          git push
+
+  docker:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/probes:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/probes:${{ github.sha }}
+
+      # Note: this does NOT deploy to Render. Render is connected directly
+      # to this GitHub repo and auto-deploys from source on every push to
+      # main, independent of this workflow. This job exists for the
+      # Docker Hub image used by the k8s/ manifests (the EKS side of this
+      # project), which is a separate deployment target from Render.
