@@ -13,13 +13,21 @@ LICENSE
 tests/
 requirements-dev.txt
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coveragerc
 .coverage
 coverage.svg
 
-# Runtime data - the container should always start with a fresh database
+# Runtime data is supplied separately from the image
 health.db
 *.db
+
+# Local configuration, archives, and repository dumps
+.env
+.env.*
+*.zip
+project_dump.txt
 
 # Python
 __pycache__/

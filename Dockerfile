@@ -7,11 +7,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8080
+ENV DATABASE_PATH=/app/data/health.db
+
+EXPOSE 10000
 
 # --workers 1 is deliberate: the background checker thread starts once per
-# worker process. Multiple workers would mean multiple threads pinging the
-# same services in parallel. (When we cover the Async Job Queue pattern
-# later, this is exactly the kind of thing that gets split into its own
-# worker Deployment instead of living inside the web process.)
-CMD ["gunicorn", "--workers", "1", "--threads", "4", "--bind", "0.0.0.0:8080", "app:app"]
+# worker process. Multiple workers would duplicate health checks.
+# exec forwards container shutdown signals directly to Gunicorn.
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 30 app:app"]

@@ -21,7 +21,14 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+.ruff_cache/
+.mypy_cache/
 
 # Local secrets, if ever used
 .env
-.env.local
+.env.*
+!.env.example
+
+# Local archives and repository dumps
+*.zip
+project_dump.txt
