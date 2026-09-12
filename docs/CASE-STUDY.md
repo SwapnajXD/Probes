@@ -55,24 +55,12 @@ This project deliberately used two different deployment targets for two differen
 
 ## A real incident, not a smooth demo
 
-During EKS cluster creation, node group provisioning timed out with no obvious cause. Rather than
-retry blindly, the failure was traced methodically:
+The EKS lab encountered two provisioning failures: an instance-type eligibility problem,
+then nodes stuck `NotReady` with no `aws-node` DaemonSet present. Reinstalling the VPC CNI
+addon was followed by both nodes becoming `Ready` within approximately one minute.
 
-1. `eksctl`'s own error gave no root cause, so I pulled raw CloudFormation stack events directly.
-2. The first attempt's events showed the real error: the chosen instance type wasn't Free Tier
-   eligible on this AWS account, explaining a silent rollback. Switched instance types.
-3. The second attempt stalled differently — no CloudFormation failure at all, meaning the problem
-   had moved elsewhere in the stack.
-4. Checked the Auto Scaling Group's activity log directly: the EC2 instances had launched fine.
-5. Checked the EC2 instances by ID: both `running`, ruling out an instance-launch failure.
-6. `kubectl get nodes` showed the nodes had joined the cluster, but were stuck `NotReady`.
-7. Inspecting `kube-system` directly found it: no `aws-node` (VPC CNI) DaemonSet existed at all,
-   despite the original cluster-creation log claiming it had installed successfully.
-8. Reinstalled the `vpc-cni` addon directly via the AWS CLI. Within a minute, both nodes were
-   `Ready`.
-
-**Lesson:** a tool reporting success doesn't guarantee a resource still exists or is healthy
-later — verify actual runtime state rather than trusting historical logs.
+The full investigation sequence, resolution, lessons, and evidence limitations are now in
+the [EKS VPC CNI incident postmortem](eks-vpc-cni-incident.md).
 
 ## Proving the ephemeral-storage lesson, not just describing it
 
@@ -96,26 +84,21 @@ defeating the app's entire purpose. Rather than upgrade to a paid tier, a free e
 service pings Probes every 10 minutes, keeping it continuously awake. The irony of an uptime
 monitor needing its own external uptime check was not lost on me.
 
-## CI/CD
+## CI and deployment
 
-Every push and pull request runs the full test suite via GitHub Actions
-(`.github/workflows/ci.yml`). On pushes to `main` specifically, two additional things happen:
+The current workflow (`.github/workflows/ci.yml`) configures Ruff lint, pytest, a Docker build,
+and Trivy repository and image scans for pull requests and pushes to `main`. It uses Python
+3.12 and read-only repository permissions. HIGH and CRITICAL findings with available fixes
+fail the scans. Check the corresponding GitHub Actions run before claiming these checks passed.
 
-1. **`coverage.svg` regenerates and commits itself back to the repo** — the badge in the README is
-   never stale, without needing a third-party coverage service. The commit message includes
-   `[skip ci]` to avoid the badge update re-triggering the workflow.
-2. **A Docker image builds and pushes to Docker Hub**, tagged both `latest` and with the commit
-   SHA — gated behind the test job passing first, so a broken change can't produce a new image.
+An earlier workflow regenerated and committed `coverage.svg` and published Docker Hub images
+after tests passed. Those jobs have been removed; Docker Hub credentials are no longer required
+by CI. The image used by the historical EKS lab was published under that earlier workflow.
 
-This pipeline does **not** deploy to Render — Render is connected directly to this GitHub repo and
-auto-deploys from source on every push independently. The Docker Hub image this pipeline produces
-is specifically for the `k8s/` manifests, i.e. the AWS EKS side of this project, which is a
-separate deployment target from the Render production instance.
+Render deployment remains separate. This workflow does not deploy to Render or gate its
+automatic deployments. Automated deployment after successful CI is a future improvement.
 
-To use this workflow on a fork, two repository secrets need to be set under
-Settings → Secrets and variables → Actions: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
-
-**A real fix worth documenting:** the first CI run failed with
+**Historical fix in the retired badge job:** the first CI run failed with
 `ModuleNotFoundError: No module named 'pkg_resources'` inside `coverage-badge`. Rather than assume
 it was a missing dependency, I reproduced it in an isolated local venv and confirmed the actual
 cause: `coverage-badge` (last updated years ago) depends on the deprecated `pkg_resources` API,
@@ -124,6 +107,39 @@ fix it, since the module isn't in newer versions at all. The real fix is pinning
 `pip install "setuptools<81"` specifically, which I verified end-to-end locally (ran the full test
 suite, regenerated a real badge showing the correct percentage, confirmed exit code 0) before
 pushing the fix.
+
+### Cached base image scan findings
+
+On 2026-09-12, a local build using the cached `python:3.12-slim` base succeeded, but
+Trivy 0.70.0 reported 30 HIGH findings across Debian packages, covering four CVEs:
+`CVE-2026-53612`, `CVE-2026-53613`, `CVE-2026-53614`, and `CVE-2026-14456`.
+The affected packages came from util-linux and OpenSSL. The scan reported available fixes.
+
+The image was rebuilt with:
+
+```bash
+sudo docker build --pull --no-cache -t probes:ci-local .
+```
+
+Docker pulled base image digest
+`sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea`.
+The same Trivy version then scanned the rebuilt image using `--severity HIGH,CRITICAL`,
+`--ignore-unfixed`, and `--exit-code 1`.
+
+| Local scan | Image ID prefix | Debian findings | Python findings | Secret findings |
+|---|---|---|---|---|
+| Before refreshing the base | `75c89c9f6b0c` | 30 HIGH | 0 | 0 |
+| After rebuilding | `23c4daadb4e5` | 0 | 0 | 0 |
+
+Both saved JSON reports were inspected and their image IDs matched the corresponding builds.
+The refreshed scan completed at 14:28:19 IST on 2026-09-12. These counts reflect the configured
+severity and fix-availability filters, not an assertion that the image has no vulnerabilities
+of any kind. The local repository scan also passed under this policy.
+
+CI now uses `docker build --pull` to refresh its base image before building. The security
+scan remains a required gate because pulling a newer image alone does not prove it is clear
+of findings. No CVEs were suppressed and no severity thresholds were relaxed. The updated
+GitHub Actions workflow still needs a successful remote run; these results are local evidence.
 
 ## Automated tests
 
