@@ -1,5 +1,3 @@
-import types
-
 import requests
 
 import checker
@@ -8,6 +6,13 @@ import checker
 class FakeResponse:
     def __init__(self, status_code):
         self.status_code = status_code
+
+    def close(self):
+        pass
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError("simulated HTTP error")
 
 
 def _service(name="Svc", url="https://example.com"):
@@ -127,7 +132,7 @@ def test_check_once_resolves_env_vars_in_url_before_requesting(db, monkeypatch):
 
     captured_urls = []
 
-    def fake_get(url, timeout=10):
+    def fake_get(url, **kwargs):
         captured_urls.append(url)
         return FakeResponse(200)
 
@@ -158,7 +163,7 @@ def test_telegram_alert_calls_api_when_configured(monkeypatch):
 
     calls = []
 
-    def fake_post(url, data=None, timeout=None):
+    def fake_post(url, data=None, **kwargs):
         calls.append({"url": url, "data": data})
         return FakeResponse(200)
 

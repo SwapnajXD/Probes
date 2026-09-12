@@ -1,5 +1,10 @@
+import logging
+import os
+import signal
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import yaml
 from flask import Flask, Response, jsonify, render_template
@@ -10,7 +15,10 @@ from checker import (
     init_db,
     resolve_env,
     start_background_checker,
+    stop_background_checker,
 )
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 def format_duration(seconds):
@@ -26,15 +34,59 @@ def format_duration(seconds):
     return f"{hours}h {minutes % 60}m"
 
 app = Flask(__name__)
+app.extensions["initialized"] = False
 
 with open("services.yaml") as f:
     config = yaml.safe_load(f)
 
 SERVICES = config["services"]
-CHECK_INTERVAL = config.get("check_interval_seconds", 120)
+try:
+    CHECK_INTERVAL = int(
+        os.environ.get("CHECK_INTERVAL_SECONDS", config.get("check_interval_seconds", 120))
+    )
+except (TypeError, ValueError):
+    raise ValueError("CHECK_INTERVAL_SECONDS must be a positive integer") from None
+if CHECK_INTERVAL <= 0:
+    raise ValueError("CHECK_INTERVAL_SECONDS must be a positive integer")
 
-init_db()
-start_background_checker(SERVICES, CHECK_INTERVAL)
+
+def initialize_app():
+    """Mark startup complete only after storage and the checker initialize."""
+    app.extensions["initialized"] = False
+    try:
+        init_db()
+    except (sqlite3.Error, OSError) as exc:
+        app.logger.error("event=initialization_failed error=%s", type(exc).__name__)
+        return
+    start_background_checker(SERVICES, CHECK_INTERVAL)
+    app.extensions["initialized"] = True
+
+
+@app.get("/health/live")
+def live():
+    return {"status": "ok"}, 200
+
+
+@app.get("/health/startup")
+def startup():
+    if not app.extensions["initialized"]:
+        return {"status": "starting"}, 503
+    return {"status": "ok"}, 200
+
+
+@app.get("/health/ready")
+def ready():
+    if not app.extensions["initialized"]:
+        return {"status": "not_ready"}, 503
+    try:
+        # Read-only mode prevents a probe from creating a missing database.
+        uri = Path(DB_PATH).resolve().as_uri() + "?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True, timeout=1)) as conn:
+            conn.execute("SELECT id FROM checks LIMIT 1").fetchone()
+            conn.execute("SELECT id FROM incidents LIMIT 1").fetchone()
+    except sqlite3.Error:
+        return {"status": "not_ready"}, 503
+    return {"status": "ok"}, 200
 
 
 def get_status():
@@ -45,7 +97,7 @@ def get_status():
 
     for svc in SERVICES:
         latest = conn.execute(
-            "SELECT * FROM checks WHERE service = ? ORDER BY checked_at DESC LIMIT 1",
+            "SELECT * FROM checks WHERE service = ? ORDER BY checked_at DESC, id DESC LIMIT 1",
             (svc["name"],),
         ).fetchone()
 
@@ -98,16 +150,42 @@ def api_status():
 
 @app.route("/metrics")
 def metrics():
-    lines = []
-    for svc in get_status():
+    services = get_status()
+    lines = [
+        "# HELP service_up Latest target reachability: 1 for up, 0 for down or not yet checked.",
+        "# TYPE service_up gauge",
+    ]
+    for svc in services:
         up_value = 1 if svc["is_up"] else 0
-        lines.append(f'service_up{{service="{svc["name"]}"}} {up_value}')
+        label = escape_metric_label(svc["name"])
+        lines.append(f'service_up{{service="{label}"}} {up_value}')
+    lines.extend([
+        "# HELP service_latency_ms Latest target check latency in milliseconds.",
+        "# TYPE service_latency_ms gauge",
+    ])
+    for svc in services:
         if svc["latency_ms"] is not None:
+            label = escape_metric_label(svc["name"])
             lines.append(
-                f'service_latency_ms{{service="{svc["name"]}"}} {svc["latency_ms"]}'
+                f'service_latency_ms{{service="{label}"}} {svc["latency_ms"]}'
             )
-    return Response("\n".join(lines) + "\n", mimetype="text/plain")
+    return Response(
+        "\n".join(lines) + "\n",
+        content_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+def escape_metric_label(value):
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+initialize_app()
 
 
 if __name__ == "__main__":
+    def shutdown(signum, frame):
+        stop_background_checker()
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, shutdown)
     app.run(host="0.0.0.0", port=8080)
