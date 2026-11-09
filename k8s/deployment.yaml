@@ -16,7 +16,29 @@ spec:
         - name: probes
           image: swapnajxd/probes:eks
           ports:
-            - containerPort: 8080
+            - containerPort: 10000
+          env:
+            - name: PORT
+              value: "10000"
           envFrom:
             - secretRef:
                 name: probes-secrets
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 10000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 10000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

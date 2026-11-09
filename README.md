@@ -119,7 +119,7 @@ Without a volume, removing or replacing the container loses its database.
 ```bash
 pip install -r requirements-dev.txt
 ruff check .
-pytest -q
+python -m pytest -q
 ```
 
 Tests cover incident transitions and transaction rollback, concurrent failures, network errors,
@@ -145,9 +145,16 @@ with a freshly pulled base image cleared those findings under the same scan poli
 These are local results; the updated GitHub Actions workflow has not yet been verified by a run.
 
 This workflow does not commit coverage badges or publish Docker Hub images and requires no
-Docker Hub credentials. Render deployment remains separate and is not gated by these checks yet.
-CI-gated deployment is still planned; do not describe this workflow as verified CI/CD until
-the corresponding automation is implemented and its runs pass.
+Docker Hub credentials. It does not trigger a deployment. `render.yaml` describes a Render
+service, but whether the existing live service automatically deploys from Git is controlled by
+its external Render settings and is not verified by this repository. CI-gated deployment is
+still planned; do not describe this workflow as verified CI/CD until the automation is implemented
+and its runs pass.
+
+To add CI-triggered Render deploys, create a Render Deploy Hook for the service, store its URL as
+a GitHub Actions secret such as `RENDER_DEPLOY_HOOK`, and add a post-CI-success workflow step that
+POSTs to that secret URL. The hook URL is a credential: keep it out of source files and logs.
+No hook secret or deploy-triggering step is currently configured here.
 
 ## Checker behavior
 
@@ -234,9 +241,7 @@ curl --fail https://probes-794f.onrender.com/health/ready
 curl --fail https://probes-794f.onrender.com/health/startup
 ```
 
-The existing Kubernetes lab manifests use port `8080`. When using this updated
-image with those manifests, set `PORT=8080` in the container environment until
-the lab manifests are updated together.
+The Kubernetes manifests use the image's default port `10000` and set `PORT` explicitly to match.
 
 ## Deploying to Kubernetes
 

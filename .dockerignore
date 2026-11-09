@@ -2,6 +2,10 @@
 .git
 .gitignore
 .github
+.agents/
+.codex/
+.aws/
+portfolio-export/
 
 # Kubernetes manifests and docs - not needed inside the running container
 k8s/
