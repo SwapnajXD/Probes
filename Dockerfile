@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+# Apply current Debian security updates; the base tag can lag package fixes.
+RUN apt-get update \
+    && apt-get install --only-upgrade -y --no-install-recommends zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY requirements.txt .
